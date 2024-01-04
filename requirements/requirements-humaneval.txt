@@ -1,0 +1,4 @@
+git+https://github.com/openai/human-eval
+python-dotenv
+huggingface_hub
+openai
