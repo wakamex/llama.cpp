@@ -93,12 +93,17 @@ def hf(prompt, model, temperature=0.8, task_id=None, end_after_n_codeblocks=None
     return parse_completion_stream(completion_stream, task_id, end_after_n_codeblocks, framework="hf")
 
 
-def ai(prompt, system=None, url="http://127.0.0.1:8080/v1", model="llama!", key="na", temperature=0.8, presence_penalty=1.2, task_id=None):
+def ai(prompt, system=None, url="http://127.0.0.1:8080/v1", model="llama!", key="na", temperature=0.8, presence_penalty=None, task_id=None):
     client = OpenAI(base_url=url, api_key=key)
     messages = [{"role": "user", "content": prompt}]
     if system:
         messages = [{"role": "system", "content": system}] + messages
-    completion_stream = client.chat.completions.create(model=model, messages=messages, stream=True, max_tokens=1_000, temperature=temperature, presence_penalty=presence_penalty)
+    kwargs = {
+        "temperature": temperature,
+    }
+    if presence_penalty:
+        kwargs["presence_penalty"] = presence_penalty
+    completion_stream = client.chat.completions.create(model=model, messages=messages, stream=True, max_tokens=1_000, **kwargs)
     return parse_completion_stream(completion_stream, task_id)
 
 
@@ -163,17 +168,28 @@ for task_id in subset:
     # raw_answer = ai(prompt=prompt,url=url,model=model,key=key,temperature=temperature,presence_penalty=presence_penalty,task_id=task_id)
 
     # llama2 (69/164=0.421) nice
-    temperature = 0.2
+    # temperature = 0.2
     # model = "meta-llama/Llama-2-70b-chat-hf"  # awful <30%
-    model = "codellama/CodeLlama-34b-Instruct-hf"  # slightly less awful
-    system = "### System Prompt\nYou are an intelligent programming assistant.\n"
-    system += "\n### Instruction:\n{prompt}\n### Response:\n"
-    preamble = "### Instruction: Please continue to complete the function.\n```python\n"
-    postamble = "```\n\n### Response:\n"
-    prompt = system + preamble + raw_prompt + postamble
+    # model = "codellama/CodeLlama-34b-Instruct-hf"  # slightly less awful
+    # system = "### System Prompt\nYou are an intelligent programming assistant.\n"
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = system + preamble + raw_prompt + postamble
+    # raw_answer = hf(prompt=prompt,model=model,temperature=temperature,task_id=task_id,end_after_n_codeblocks=2)
 
-    # get answer, sanitize it, and append it to the jsonl file
-    raw_answer = hf(prompt=prompt,model=model,temperature=temperature,task_id=task_id,end_after_n_codeblocks=2)
+    # mistral-large (120/164=0.732)
+    url = "https://api.mistral.ai/v1/"
+    model = "mistral-large-2402"
+    key = MISTRAL_KEY
+    temperature = 0.2
+    presence_penalty = 0
+    preamble = "Please continue to complete the function.\n```python\n"
+    postamble = ""
+    prompt = preamble + raw_prompt + postamble
+    raw_answer = ai(prompt=prompt,url=url,model=model,key=key,temperature=temperature,task_id=task_id)
+
+    # sanitize answer, and append it to the jsonl file
     with open(f"{model.split('/', maxsplit=1)[0]}.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(dict(task_id=task_id, completion=sanitize_answer(raw_answer))))
         f.write("\n")
