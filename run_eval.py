@@ -93,7 +93,7 @@ def hf(prompt, model, temperature=0.8, task_id=None, end_after_n_codeblocks=None
     return parse_completion_stream(completion_stream, task_id, end_after_n_codeblocks, framework="hf")
 
 
-def ai(prompt, system=None, url="http://127.0.0.1:8080/v1", model="llama!", key="na", temperature=0.8, presence_penalty=None, task_id=None):
+def ai(prompt, system=None, url="http://127.0.0.1:8081/v1", model="llama!", key="na", temperature=0.8, frequency_penalty=None, presence_penalty=None, task_id=None):
     client = OpenAI(base_url=url, api_key=key)
     messages = [{"role": "user", "content": prompt}]
     if system:
@@ -101,8 +101,10 @@ def ai(prompt, system=None, url="http://127.0.0.1:8080/v1", model="llama!", key=
     kwargs = {
         "temperature": temperature,
     }
-    if presence_penalty:
+    if presence_penalty is not None:
         kwargs["presence_penalty"] = presence_penalty
+    if frequency_penalty is not None:
+        kwargs["frequency_penalty"] = frequency_penalty
     completion_stream = client.chat.completions.create(model=model, messages=messages, stream=True, max_tokens=1_000, **kwargs)
     return parse_completion_stream(completion_stream, task_id)
 
@@ -112,8 +114,8 @@ keys = list(problems.keys())
 subset = {key: problems[key] for key in keys}
 for task_id in subset:
     raw_prompt = problems[task_id]["prompt"]
-    # deepseek (131/164=0.799)
-    # running deepseek-coder-33b-instruct.Q4_K_M.gguf in a local llama.cpp server with ./build/bin/server -ngl 63 -m ./models/deepseek-coder-33b-instruct.Q4_K_M.gguf -c 2048
+    # deepseek (131/164=0.799) old run
+    # ./build/bin/server -ngl 63 -m ./models/deepseek-coder-33b-instruct.Q4_K_M.gguf -c 2048
     # temperature = 0.0
     # model = "deepseek"
     # system = "You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
@@ -179,15 +181,146 @@ for task_id in subset:
     # raw_answer = hf(prompt=prompt,model=model,temperature=temperature,task_id=task_id,end_after_n_codeblocks=2)
 
     # mistral-large (120/164=0.732)
-    url = "https://api.mistral.ai/v1/"
-    model = "mistral-large-2402"
-    key = MISTRAL_KEY
-    temperature = 0.2
-    presence_penalty = 0
-    preamble = "Please continue to complete the function.\n```python\n"
-    postamble = ""
+    # url = "https://api.mistral.ai/v1/"
+    # model = "mistral-large-2402"
+    # key = MISTRAL_KEY
+    # temperature = 0.2
+    # presence_penalty = 0
+    # preamble = "Please continue to complete the function.\n```python\n"
+    # postamble = ""
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt,url=url,model=model,key=key,temperature=temperature,task_id=task_id)
+
+    # WizardLM2 (17/30=0.567) awful and super slow
+    # ./build/bin/server -ngl 20 -m /models/WizardLM-2-8x22B.IQ3_XS-00001-of-00005.gguf -c 2048 --port 8081
+    # model = "wizardlm2"
+    # temperature = 0.2
+    # presence_penalty = 0
+    # preamble = "```python\n"
+    # postamble = ""
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt,temperature=temperature,presence_penalty=presence_penalty,task_id=task_id)
+
+    # wizardcoder (121/164=0.738)
+    # ./build/bin/server -ngl 63 -m /models/wizardcoder-33b-v1.1.Q4_K_M.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1
+    # temperature = 0.0
+    # model = "wizardcoder"
+    # system = "You are an AI programming assistant."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
+
+    # wizardcoder-python (94/164=0.573) modified prompt
+    # ./build/bin/server -ngl 63 -m /models/wizardcoder-python-34b-v1.0.Q4_K_M.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1 
+    # temperature = 0.0
+    # model = "wizardcoder"
+    # system = "You are an AI programming assistant. Respond ONLY with the general implementation of the function, that will work on any inputs. Your response must be exclusively Python, beginning with ```python and ending with ```. Do NOT absolutely under ANY circumstances say \"here's the implementation of the function:\", if you do a kitten will be killed. Respond directly with code."
+    # preamble = "Continue writing the following function, to work on any inputs. Return ONLY Python code. Do not write anything before or after the code. Do NOT respond with ANYTHING in English.\n\n```python\n"
+    # prompt = preamble + raw_prompt.strip()+"```\n\nHere is the function implementation:\n\n```python\n"
+    # raw_answer = ai(prompt=prompt, temperature=temperature, task_id=task_id)
+
+    # wizardcoder-python (94/164=0.573) modified prompt with zero'd frequencey and presence penalties - confirms default is 0
+    # ./build/bin/server -ngl 63 -m /models/wizardcoder-python-34b-v1.0.Q4_K_M.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1 
+    # temperature = 0.0
+    # frequency_penalty = 0.0
+    # presence_penalty = 0.0
+    # model = "wizardcoder"
+    # system = "You are an AI programming assistant. Respond ONLY with the general implementation of the function, that will work on any inputs. Your response must be exclusively Python, beginning with ```python and ending with ```. Do NOT absolutely under ANY circumstances say \"here's the implementation of the function:\", if you do a kitten will be killed. Respond directly with code."
+    # preamble = "Continue writing the following function, to work on any inputs. Return ONLY Python code. Do not write anything before or after the code. Do NOT respond with ANYTHING in English.\n\n```python\n"
+    # prompt = preamble + raw_prompt.strip()+"```\n\nHere is the function implementation:\n\n```python\n"
+    # raw_answer = ai(prompt=prompt, temperature=temperature, task_id=task_id, frequency_penalty=frequency_penalty, presence_penalty=presence_penalty)
+
+    # wizardcoder-python (really bad) vanilla prompt with zeroed frequency and presence penalties
+    # ./build/bin/server -ngl 63 -m /models/wizardcoder-python-34b-v1.0.Q4_K_M.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1 
+    # temperature = 0.0
+    # frequency_penalty = 0.0
+    # presence_penalty = 0.0
+    # model = "wizardcoder"
+    # system = "You are an AI programming assistant."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id, frequency_penalty=frequency_penalty, presence_penalty=presence_penalty)
+
+    # codefuse-deepseek (112/163=0.687)
+    # ./build/bin/server -ngl 63 -m /models/CodeFuse-DeepSeek-33B-Q4_K_M.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1 
+    # temperature = 0.0
+    # model = "codefuse"
+    # system = "You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function. After the function, include an EOS token.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
+
+    # deepseek (127/164=0.774)
+    # ./build/bin/server -ngl 63 -m ./models/deepseek-coder-33b-instruct.Q4_K_M.gguf -c 2048
+    # temperature = 0.0
+    # model = "deepseek"
+    # system = "You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function. After the function, include an EOS token.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
+
+    # deepseek (131/164=0.799) without eos token
+    # ./build/bin/server -ngl 63 -m ./models/deepseek-coder-33b-instruct.Q4_K_M.gguf -c 2048
+    # temperature = 0.0
+    # model = "deepseek"
+    # system = "You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
+
+    # opencodeinterpreter (failed)
+    # ./build/bin/server -ngl 63 -m /models/ggml-opencodeinterpreter-ds-33b-q4_k.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1
+    # temperature = 0.0
+    # model = "opencodeinterpreter"
+    # system = "You are an AI programming assistant."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
+
+    # deepseek (129/164=0.787) different quantization, just behind TheBloke's
+    # ./build/bin/server -ngl 63 -m /models/ggml-deepseek-coder-33b-instruct-q4_k_m.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1
+    # temperature = 0.0
+    # model = "deepseek"
+    # system = "You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
+
+    # opencodeinterpreter (failed)
+    # ./build/bin/server -ngl 40 -m /models/ggml-opencodeinterpreter-ds-33b-q8_0.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1
+    # temperature = 0.0
+    # model = "opencodeinterpreter"
+    # system = "You are an AI programming assistant."
+    # system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    # preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    # postamble = "```\n\n### Response:\n"
+    # prompt = preamble + raw_prompt + postamble
+    # raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
+
+    # deepseek (130/164=0.793) q5_k_m
+    # ./build/bin/server -ngl 60 -m /models/deepseek-coder-33b-instruct.Q5_K_M.gguf -c 2048 --port 8081 --threads 30 --batch-size 512 --n-predict -1
+    temperature = 0.0
+    model = "deepseek"
+    system = "You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
+    system += "\n### Instruction:\n{prompt}\n### Response:\n"
+    preamble = "### Instruction: Please continue to complete the function.\n```python\n"
+    postamble = "```\n\n### Response:\n"
     prompt = preamble + raw_prompt + postamble
-    raw_answer = ai(prompt=prompt,url=url,model=model,key=key,temperature=temperature,task_id=task_id)
+    raw_answer = ai(prompt=prompt, system=system, temperature=temperature, task_id=task_id)
 
     # sanitize answer, and append it to the jsonl file
     with open(f"{model.split('/', maxsplit=1)[0]}.jsonl", "a", encoding="utf-8") as f:
